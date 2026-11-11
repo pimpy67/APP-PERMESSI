@@ -1,0 +1,21 @@
+{
+  "name": "playground-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playground per esercitarsi con le query e il driver pg",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --env-file=.env server.js",
+    "dev": "node --watch --env-file=.env server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.13.0"
+  }
+}

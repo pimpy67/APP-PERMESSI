@@ -1,0 +1,101 @@
+# Richieste di prova per l'API, da eseguire con l'estensione REST Client di VS Code.
+# Clicca su "Send Request" sopra ogni richiesta per inviarla.
+# Prima avvia il database (docker compose up -d) e l'API (cd api && npm run dev).
+
+@baseUrl = http://localhost:3000/api
+
+# Credenziali di un utente dei dati di test (db/seed.sql)
+@email = mario.rossi@azienda.example
+@password = Password123!
+
+# Token restituito dall'ultimo login: esegui prima la richiesta di login.
+# Le API autenticate lo ricevono nell'header:  Authorization: Bearer {{token}}
+# Va dichiarato qui e non dopo una richiesta: REST Client considera corpo della
+# richiesta tutto ciò che sta prima del "###" successivo, commenti compresi.
+@token = {{login.response.body.token}}
+
+### Health check: verifica che l'API risponda e raggiunga il database
+# Risposta attesa: 200 {"database":"raggiungibile"}
+GET {{baseUrl}}/salute
+Accept: application/json
+
+### Registrazione: crea un nuovo utente con ruolo Dipendente
+# {{$timestamp}} viene sostituito da REST Client con l'ora corrente in secondi,
+# così ogni invio usa un'email diversa e non si ottiene 409 "Email già registrata".
+# Risposta attesa: 201 { id, nome, cognome, email, ruolo }
+POST {{baseUrl}}/utenti/register
+Content-Type: application/json
+Accept: application/json
+
+{
+  "nome": "Anna",
+  "cognome": "Gallo",
+  "email": "anna.gallo.{{$timestamp}}@azienda.example",
+  "password": "Password123!"
+}
+
+### Login: email e password nel corpo JSON, il tipo di contenuto negli header
+# Risposta attesa: 200 { token, utente: { id, email, ruolo } }, oppure 401 "Credenziali non valide"
+# "@name login" dà un nome alla richiesta: le richieste successive possono leggere
+# il token con {{login.response.body.token}} (vedi la variabile @token qui sotto).
+# @name login
+POST {{baseUrl}}/utenti/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Esempio hash: MD5, SHA-256 e bcrypt dello stesso testo
+# Il testo va nel parametro "testo" della query string.
+# Invia la richiesta due volte e confronta le risposte:
+# - md5 e sha256 sono sempre identici, perché non usano un salt: per questo
+#   non vanno usati per le password;
+# - bcrypt cambia a ogni invio, perché genera un salt casuale. Il formato è
+#   $2a$12$<salt di 22 caratteri><hash di 31 caratteri>: 2a è la versione
+#   dell'algoritmo, 12 il fattore di costo (2^12 iterazioni).
+# bcrypt è lento di proposito (circa 0,25 s): rende costosi gli attacchi a forza bruta.
+# Risposta attesa: 200 { testo, md5, sha256, bcrypt }
+# @name hashEsempio
+GET {{baseUrl}}/esempi/hash?testo={{password}}
+Accept: application/json
+
+### Verifica bcrypt: testo corretto
+# Usa l'hash bcrypt restituito dalla richiesta precedente: eseguila prima.
+# Rigenera l'hash più volte e riesegui questa verifica: l'hash cambia ogni volta,
+# ma il risultato resta valido, perché il salt è scritto dentro l'hash.
+# Risposta attesa: 200 { "valido": true }
+POST {{baseUrl}}/esempi/hash/verifica
+Content-Type: application/json
+Accept: application/json
+
+{
+  "testo": "{{password}}",
+  "hash": "{{hashEsempio.response.body.bcrypt}}"
+}
+
+### Verifica bcrypt: testo sbagliato
+# Stesso hash, testo diverso.
+# Risposta attesa: 200 { "valido": false }
+POST {{baseUrl}}/esempi/hash/verifica
+Content-Type: application/json
+Accept: application/json
+
+{
+  "testo": "password123!",
+  "hash": "{{hashEsempio.response.body.bcrypt}}"
+}
+
+### Utente collegato: richiesta autenticata con il token JWT
+# Esegui prima la richiesta di login, che valorizza {{token}}.
+# Risposta attesa: 200 { id, nome, cognome, email, ruolo }
+# Senza header Authorization o con un token non valido: 401
+GET {{baseUrl}}/utenti/me
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### Utente collegato senza token: deve rispondere 401 "Token mancante"
+GET {{baseUrl}}/utenti/me
+Accept: application/json

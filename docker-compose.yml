@@ -1,0 +1,58 @@
+# Ambiente di sviluppo del monorepo app-permessi: PostgreSQL + pgAdmin.
+# Da lanciare dalla root del progetto:
+#
+#   docker compose up -d        avvia i servizi
+#   docker compose down         li ferma (i dati restano nel volume pgdata)
+#   docker compose down -v      li ferma e CANCELLA i volumi (database vuoto)
+#
+# Le variabili vengono lette da un eventuale file .env nella root del progetto;
+# se mancano si usano i valori predefiniti qui sotto, allineati a api/.env.example.
+#
+# I dati di PostgreSQL stanno nel volume Docker "pgdata", non sul disco del computer.
+# Al primo avvio, quando il volume è vuoto, PostgreSQL esegue in ordine alfabetico
+# gli script in /docker-entrypoint-initdb.d: prima db/schema.sql, poi db/seed.sql.
+# Se il volume contiene già un database, gli script non vengono eseguiti.
+# Per ricreare il database da zero: docker compose down -v e poi docker compose up -d.
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: app-permessi-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-utente_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cambia-questa-password}
+      POSTGRES_DB: ${POSTGRES_DB:-permessi}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4:9
+    container_name: app-permessi-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@app-permessi.it}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - ./db/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  pgadmin-data:

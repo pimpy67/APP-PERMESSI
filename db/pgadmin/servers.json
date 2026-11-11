@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "permessi (Docker)",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "permessi",
+      "Username": "utente_app",
+      "SSLMode": "prefer"
+    }
+  }
+}
